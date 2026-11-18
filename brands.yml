@@ -1,0 +1,22 @@
+# Public Instagram professional accounts. One business_discovery call each per run.
+brands:
+  - username: tanishqjewellery
+    name: Tanishq
+  - username: caratlane
+    name: CaratLane
+  - username: bluestone_jewellery
+    name: BlueStone
+  - username: kalyanjewellers_official
+    name: Kalyan Jewellers
+  - username: malabargoldanddiamonds
+    name: Malabar Gold & Diamonds
+  - username: joyalukkas
+    name: Joyalukkas
+  - username: sencogoldanddiamonds
+    name: Senco Gold & Diamonds
+  - username: pc_jeweller
+    name: PC Jeweller
+  - username: orrajewellery
+    name: ORRA
+  - username: canderejewellery
+    name: Candere
