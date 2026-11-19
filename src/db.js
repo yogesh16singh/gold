@@ -136,3 +136,14 @@ export function postsSince(db, since) {
     .prepare("SELECT * FROM posts WHERE published_at >= ? ORDER BY published_at DESC")
     .all(since);
 }
+
+export function latestByBrand(db) {
+  return db
+    .prepare(
+      `SELECT brand_username, MAX(published_at) AS published_at
+       FROM posts
+       WHERE published_at IS NOT NULL
+       GROUP BY brand_username`,
+    )
+    .all();
+}

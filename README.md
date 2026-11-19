@@ -62,7 +62,7 @@ Checked against the live token on 18 November 2026.
 - All ten brands come back from Meta: 50 posts each. A later fetch updates counts in place and inserts only the new media ids. That refresh added 9 posts and updated the other 491.
 - One call per brand is enough. The oldest post on the first page is already outside the 7-day window, so paging stops.
 - A local thumbnail, plus the permalink to the original.
-- The page at `/` keeps two rankings. Reels use views / followers. Feed posts use (likes + 5×comments) / followers. The two rates are separate.
+- The page at `/` keeps two rankings. Reels use views / followers. Feed posts use (likes + 5×comments) / followers. The two rates are separate. Store openings, greetings, and hacks are listed under "Not in the product rank". A greeting that names the products stays in the rank.
 - Gemini vision tags the photo when the free tier still has quota. On 18 November it tagged 12 photos before the daily limit, so 14 posts in that week have a vision tag. The caption keyword tag covers the rest, and it covers a missing key.
 - Hidden likes stay missing. Those photos are scored from comments only.
 - An Apify path is wired for the day Meta rejects the token. It is not the daily collector.
@@ -71,7 +71,7 @@ Checked against the live token on 18 November 2026.
 ## What does not work yet
 
 - A full vision pass of the week on the free Gemini tier. The account is limited to about 20 image calls a day. The 18 November run left 27 posts on their caption tag. The next day's job continues with those.
-- An empty week for a quiet brand. On 18 November Tanishq and Senco returned 50 posts each, and none of them fell inside the last 7 days, so the page shows no row for them. That is an empty week, not a missed page.
+- An empty week for a quiet brand. On 18 November Tanishq and Senco returned 50 posts each, and none of them fell inside the last 7 days. The page names them under "Empty this week" and shows the date of their last stored post. That is an empty week, not a missed page.
 - Stories. The official API cannot read another brand's Stories. They are left out on purpose.
 - The reel file itself, when Meta omits `media_url` (licensed audio, or downloads turned off). The permalink and, when present, the thumbnail still work.
 - Personal accounts, and accounts that are not professional. The call skips them.

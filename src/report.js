@@ -1,18 +1,34 @@
-import { postsSince } from "./db.js";
+import { latestByBrand, postsSince } from "./db.js";
+import { asideReason } from "./keywords.js";
 import { BASIS_LABEL, WINDOW_DAYS, isReel, scoreRow, windowStart } from "./score.js";
+
+const ASIDE_LABEL = {
+  "store opening": "Store opening",
+  greeting: "Greeting",
+  hack: "Hack",
+};
+const ASIDE_ORDER = { "store opening": 0, greeting: 1, hack: 2 };
 
 const SAFE_NAME = /^[A-Za-z0-9._-]+$/;
 
-export function renderReport(rows, names, now = new Date()) {
+export function renderReport(rows, names, now = new Date(), latest = {}) {
   const reels = [];
   const photos = [];
+  const aside = [];
   for (const row of rows) {
     const result = scoreRow(row);
+    const reason = asideReason(row.caption);
+    if (reason) {
+      aside.push([row, result, reason]);
+      continue;
+    }
     if (isReel(row.media_product_type)) reels.push([row, result]);
     else photos.push([row, result]);
   }
   reels.sort(rateKey);
   photos.sort(rateKey);
+  aside.sort(asideKey);
+  const productRows = [...reels, ...photos].map(([row]) => row);
   const start = new Date(now.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const brands = new Set(rows.map((row) => row.brand_username)).size;
   const range = `${day(start)} – ${day(now)}`;
@@ -31,15 +47,17 @@ export function renderReport(rows, names, now = new Date()) {
     `<div><dt>Window</dt><dd>${WINDOW_DAYS} days</dd></div>`,
     "</dl>",
     "</header>",
-    heatSection(categoryHeat(rows)),
-    metalSection(metalCounts(rows)),
-    postsSection(reels, names, "Reels", "Ranked by view_count / followers. This list is separate from feed posts."),
+    quietSection(quietBrands(names, rows, latest)),
+    heatSection(categoryHeat(productRows)),
+    metalSection(metalCounts(productRows)),
+    postsSection(reels, names, "Reels", "Ranked by view_count / followers. Store openings, greetings, and hacks are not in this list."),
     postsSection(
       photos,
       names,
       "Feed posts",
-      "Images, carousels, and videos that are not Reels. Ranked by (likes + 5×comments) / followers.",
+      "Images, carousels, and videos that are not Reels. Ranked by (likes + 5×comments) / followers. Store openings, greetings, and hacks are not in this list.",
     ),
+    postsSection(aside, names, "Not in the product rank", "Store openings, greetings, and hacks. A greeting that names the products stays in the rank.", { ranked: false }),
     "<footer>",
     "<p>Reels and feed posts use different formulas, so they stay in separate lists. A missing like count is hidden. Raw likes are shown beside the rate, and the rate is the sort.</p>",
     "<p>Thumbnails are local copies for this internal view. The brand still owns the photo. Instagram links open the original post in a new tab.</p>",
@@ -49,7 +67,30 @@ export function renderReport(rows, names, now = new Date()) {
 }
 
 export function buildReport(db, names, now = new Date()) {
-  return renderReport(postsSince(db, windowStart(now)), names, now);
+  const rows = postsSince(db, windowStart(now));
+  const latest = Object.fromEntries(
+    latestByBrand(db).map((row) => [row.brand_username, row.published_at]),
+  );
+  return renderReport(rows, names, now, latest);
+}
+
+function quietBrands(names, rows, latest) {
+  const active = new Set(rows.map((row) => row.brand_username));
+  return Object.entries(names)
+    .filter(([username]) => !active.has(username))
+    .map(([username, name]) => ({ name, lastPost: latest[username] || null }))
+    .sort((a, b) => String(a.lastPost || "").localeCompare(String(b.lastPost || "")) || a.name.localeCompare(b.name));
+}
+
+function quietSection(brands) {
+  if (!brands.length) return "";
+  const items = brands
+    .map((brand) => {
+      const when = brand.lastPost ? `Last post ${published(brand.lastPost)}` : "No post stored";
+      return `<li><strong>${escapeHtml(brand.name)}</strong><span>${escapeHtml(when)}</span></li>`;
+    })
+    .join("");
+  return `<section class="panel"><div class="section-head"><h2>Empty this week</h2><p>These brands were fetched. None of their posts fall inside the last ${WINDOW_DAYS} days.</p></div><ul class="quiet-list">${items}</ul></section>`;
 }
 
 function categoryHeat(rows) {
@@ -102,9 +143,22 @@ function rateKey(a, b) {
   return right - left;
 }
 
-function postsSection(scored, names, title, note) {
-  if (!scored.length) return `<section class="panel"><h2>${escapeHtml(title)}</h2><p class="empty">No posts in this window.</p></section>`;
-  const body = scored.slice(0, 20).map(([row, result], index) => {
+function asideKey(a, b) {
+  const reason = (ASIDE_ORDER[a[2]] ?? 9) - (ASIDE_ORDER[b[2]] ?? 9);
+  if (reason) return reason;
+  const reel = Number(isReel(b[0].media_product_type)) - Number(isReel(a[0].media_product_type));
+  if (reel) return reel;
+  return rateKey(a, b);
+}
+
+function postsSection(scored, names, title, note, options = {}) {
+  const ranked = options.ranked !== false;
+  if (!scored.length) {
+    if (!ranked) return "";
+    return `<section class="panel"><h2>${escapeHtml(title)}</h2><p class="empty">No posts in this window.</p></section>`;
+  }
+  const list = ranked ? scored.slice(0, 20) : scored;
+  const body = list.map(([row, result, reason], index) => {
     const brand = names[row.brand_username] || row.brand_username;
     const category = row.category || "untagged";
     const metal = row.metal || "unknown";
@@ -118,14 +172,16 @@ function postsSection(scored, names, title, note) {
     const likes = row.likes_hidden
       ? "<span><b>—</b> likes hidden</span>"
       : `<span><b>${inNum(row.like_count)}</b> likes</span>`;
+    const badge = ranked ? `<span class="rank">${index + 1}</span>` : "";
+    const reasonTag = reason ? `<span class="aside-tag">${escapeHtml(ASIDE_LABEL[reason] || reason)}</span>` : "";
     return `<li class="card">
-${shot(row.permalink, `${image}<span class="rank">${index + 1}</span>`)}
+${shot(row.permalink, `${image}${badge}`)}
 <div class="card-body">
 <div class="card-top">
 <div><h3>${escapeHtml(brand)}</h3><p class="quiet">${inNum(row.followers_count)} followers</p></div>
 <div class="rate"><strong>${pct(result.rate)}</strong><span>${escapeHtml(BASIS_LABEL[result.basis] || result.basis)}</span></div>
 </div>
-<p class="tags"><span>${escapeHtml(category)}</span><span class="metal-tag ${escapeHtml(metal)}">${escapeHtml(metal)}</span></p>
+<p class="tags">${reasonTag}<span>${escapeHtml(category)}</span><span class="metal-tag ${escapeHtml(metal)}">${escapeHtml(metal)}</span></p>
 ${caption ? `<p class="caption" title="${escapeHtml(full)}">${escapeHtml(caption)}</p>` : ""}
 <p class="metrics">${likes}<span><b>${inNum(row.comments_count)}</b> comments</span>${row.view_count == null ? "" : `<span><b>${inNum(row.view_count)}</b> views</span>`}<span>${escapeHtml(published(row.published_at))}</span></p>
 ${link(row.permalink)}
@@ -284,6 +340,7 @@ a:focus-visible, .ig:focus-visible { outline: 2px solid var(--gold); outline-off
 .rate span, .metrics { color: var(--muted); font-size: 13px; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .tags span { text-transform: capitalize; font-size: 12px; letter-spacing: 0.03em; background: #f6efe4; color: #5c4b3a; border-radius: 99px; padding: 3px 9px; }
+.tags span.aside-tag { background: #f4e2cf; color: var(--gold-deep); text-transform: none; }
 .metal-tag.gold { background: #f8efd4; color: #7a5a12; }
 .metal-tag.diamond { background: #eef2f6; color: #3e5164; }
 .metal-tag.polki { background: #f8ecd4; color: #7a5410; }
@@ -294,6 +351,9 @@ a:focus-visible, .ig:focus-visible { outline: 2px solid var(--gold); outline-off
 .ig:hover { background: var(--gold-deep); color: #fffaf3; border-color: var(--gold-deep); }
 .ig::after { content: " ↗"; }
 .empty { margin-top: 8px; color: var(--muted); }
+.quiet-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.quiet-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; box-shadow: var(--shadow); }
+.quiet-list span { color: var(--muted); font-size: 14px; }
 footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
 @media (max-width: 800px) {
   .top { flex-direction: column; align-items: stretch; }
@@ -310,6 +370,7 @@ footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line);
   .thumb, .thumb.missing { width: 100%; height: 220px; }
   .card-top { flex-direction: column; }
   .rate { text-align: left; }
+  .quiet-list li { flex-direction: column; align-items: flex-start; gap: 2px; }
 }
 </style>
 </head>`;

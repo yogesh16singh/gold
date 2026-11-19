@@ -13,6 +13,19 @@ const CATEGORY_PATTERNS = [
   ["set", /(jewellery|jewelry|bridal|necklace|diamond|gold)[\s-]?sets?|\bsets?\b of/i],
 ];
 
+const STORE_OPENING = /\bgrand opening\b|\b(?:store|showroom) opening\b|\bopening of our \d+/i;
+const HACK = /\bhacks?\b|#\w*hacks?\b|\bquick fix\b/i;
+const GREETING = /\b(?:happy\s+)?children's day\b|\b(?:international\s+)?men's day\b|\b(?:happy\s+)?women's day\b|\b(?:happy\s+)?mother's day\b|\b(?:happy\s+)?father's day\b|\bshubh\b|\bwishing you\b/i;
+const NAMES_PRODUCTS = /products featured/i;
+
+export function asideReason(caption) {
+  const text = String(caption || "").replace(/[’‘]/g, "'");
+  if (STORE_OPENING.test(text)) return "store opening";
+  if (HACK.test(text)) return "hack";
+  if (GREETING.test(text) && !NAMES_PRODUCTS.test(text)) return "greeting";
+  return null;
+}
+
 const POLKI = /\bpolki\b|\bkundan\b/i;
 const DIAMOND = /\bdiamonds?\b|\bsolitaire\b/i;
 const GOLD = /\bgold\b|\b\d{2}\s?k(?:t|arat)?\b/i;

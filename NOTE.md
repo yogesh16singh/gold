@@ -28,7 +28,7 @@ SQLite is enough. One file, media id as the primary key. I'd look at MongoDB if 
 
 ## What "trending" means
 
-I rank against that brand's own followers, for the last 7 days. Raw likes would let the biggest account win every week. A feed post is `(likes + 5 × comments) / followers`. A Reel is `view_count / followers`. I keep those as two lists. A post is a Reel only when `media_product_type` says so. A feed video uses the photo formula. Hidden likes use comments only. If a count is missing I leave it missing. The page also counts how many brands posted each product, and splits gold, diamond and polki. Since April 2026, reel views include Facebook on cross-posts, so a spike can just be a cross-post.
+I rank against that brand's own followers, for the last 7 days. Raw likes would let the biggest account win every week. A feed post is `(likes + 5 × comments) / followers`. A Reel is `view_count / followers`. I keep those as two lists. A post is a Reel only when `media_product_type` says so. A feed video uses the photo formula. Hidden likes use comments only. If a count is missing I leave it missing. The page also counts how many brands posted each product, and splits gold, diamond and polki. Store openings, greetings, and hacks stay out of those ranks. A greeting that names the products stays in. Since April 2026, reel views include Facebook on cross-posts, so a spike can just be a cross-post.
 
 ## What broke
 
@@ -36,4 +36,4 @@ The token went first. The short-lived one expired on 16 November. The 60-day exc
 
 Then Gemini. It tagged 12 photos on 18 November and returned HTTP 429, the free daily limit of about 20 calls. Those posts stayed on the caption keyword tag. The next day's tag run picks them up. A 503 is the same: leave the row and try again later. I kept them on the caption tag and let the next run continue.
 
-After that, the reel file, when Meta leaves out `media_url`. The permalink and the thumbnail are still there. A quiet brand is an empty week. On 18 November Tanishq and Senco returned 50 posts each and none of them were inside the last 7 days, so the page has no row for them.
+After that, the reel file, when Meta leaves out `media_url`. The permalink and the thumbnail are still there. A quiet brand is an empty week. On 18 November Tanishq and Senco returned 50 posts each and none of them were inside the last 7 days. The page names them and shows the date of their last stored post.
