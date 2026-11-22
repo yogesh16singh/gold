@@ -62,7 +62,7 @@ Checked against the live token on 18 November 2026.
 - All ten brands come back from Meta: 50 posts each. A later fetch updates counts in place and inserts only the new media ids. That refresh added 9 posts and updated the other 491.
 - One call per brand is enough. The oldest post on the first page is already outside the 7-day window, so paging stops.
 - A local thumbnail, plus the permalink to the original.
-- The page at `/` keeps two rankings. Reels use views / followers. Feed posts use (likes + 5×comments) / followers. The two rates are separate. Store openings, greetings, and hacks are listed under "Not in the product rank". A greeting that names the products stays in the rank.
+- The page at `/` opens with the product to put forward: the metal and type the most brands posted, then the three highest-rate photos of that pair. Reels use views / followers. Feed posts use (likes + 5×comments) / followers. The two rates are separate. Store openings, greetings, and hacks stay out of that count. Posts tagged other stay off the product chart.
 - Gemini vision tags the photo when the free tier still has quota. On 18 November it tagged 12 photos before the daily limit, so 14 posts in that week have a vision tag. The caption keyword tag covers the rest, and it covers a missing key.
 - Hidden likes stay missing. Those photos are scored from comments only.
 - An Apify path is wired for the day Meta rejects the token. It is not the daily collector.

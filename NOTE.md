@@ -12,6 +12,8 @@ Apify is already wired as that backup. On 17 November one Candere fetch of 50 po
 
 I wouldn't run a logged-in script. It breaks Instagram's terms, and a checkpoint or a ban just kills the feed with no warning.
 
+On 20 November I checked three public repos that people use for this: instaloader/instaloader, mikf/gallery-dl, and subzeroid/instagrapi. I did not run them against the brands, and I did not log in. Instaloader reads Instagram's web JSON. Public profile posts used to come back without a session, but Instagram now often redirects that call to the login page, and stories and highlights need one. gallery-dl can include posts, reels, stories, and highlights, and the Instagram path expects cookies from a browser that is already logged in. instagrapi talks to the private mobile API. Its own examples start with a username and password, and it says anonymous web calls are not something to run in production. Stories are the same on all three: a working fetch is a logged-in session, even when the password is not on the command line. I left the collector on `business_discovery`. The useful ideas were already in this project: one row per media id, posts and reels as separate lists, and a thumbnail plus the permalink instead of the video file.
+
 ## Stories
 
 I'd leave Stories out. The official API can't read another brand's Stories. They only last 24 hours, so automating them means polling every few hours, which is where the bans and the scraper bills show up. If a launch only exists as a Story, save it by hand.

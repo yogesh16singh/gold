@@ -1,6 +1,10 @@
+import { CATEGORIES } from "./config.js";
 import { latestByBrand, postsSince } from "./db.js";
 import { asideReason } from "./keywords.js";
 import { BASIS_LABEL, WINDOW_DAYS, isReel, scoreRow, windowStart } from "./score.js";
+
+const REAL_CATEGORY = new Set(CATEGORIES.filter((name) => name !== "other"));
+const REAL_METAL = new Set(["gold", "diamond", "polki", "mixed"]);
 
 const ASIDE_LABEL = {
   "store opening": "Store opening",
@@ -47,8 +51,9 @@ export function renderReport(rows, names, now = new Date(), latest = {}) {
     `<div><dt>Window</dt><dd>${WINDOW_DAYS} days</dd></div>`,
     "</dl>",
     "</header>",
+    decisionSection(chooseDecision([...reels, ...photos]), names),
     quietSection(quietBrands(names, rows, latest)),
-    heatSection(categoryHeat(productRows)),
+    heatSection(categoryHeat(productRows), unnamedCount(productRows)),
     metalSection(metalCounts(productRows)),
     postsSection(reels, names, "Reels", "Ranked by view_count / followers. Store openings, greetings, and hacks are not in this list."),
     postsSection(
@@ -93,11 +98,16 @@ function quietSection(brands) {
   return `<section class="panel"><div class="section-head"><h2>Empty this week</h2><p>These brands were fetched. None of their posts fall inside the last ${WINDOW_DAYS} days.</p></div><ul class="quiet-list">${items}</ul></section>`;
 }
 
+function unnamedCount(rows) {
+  return rows.filter((row) => !REAL_CATEGORY.has(row.category)).length;
+}
+
 function categoryHeat(rows) {
   const brands = new Map();
   const counts = new Map();
   for (const row of rows) {
-    const category = row.category || "untagged";
+    if (!REAL_CATEGORY.has(row.category)) continue;
+    const category = row.category;
     if (!brands.has(category)) brands.set(category, new Set());
     brands.get(category).add(row.brand_username);
     counts.set(category, (counts.get(category) || 0) + 1);
@@ -105,6 +115,56 @@ function categoryHeat(rows) {
   return [...brands.keys()]
     .map((category) => ({ category, brands: brands.get(category).size, posts: counts.get(category) }))
     .sort((a, b) => b.brands - a.brands || b.posts - a.posts);
+}
+
+function chooseDecision(scored) {
+  const named = scored.filter(([row]) => REAL_CATEGORY.has(row.category) && REAL_METAL.has(row.metal));
+  const pool = named.length ? named : scored.filter(([row]) => REAL_CATEGORY.has(row.category));
+  if (!pool.length) return null;
+  const groups = new Map();
+  for (const item of pool) {
+    const row = item[0];
+    const metal = named.length ? row.metal : null;
+    const key = `${metal || ""}|${row.category}`;
+    if (!groups.has(key)) groups.set(key, { metal, category: row.category, brands: new Set(), items: [] });
+    const group = groups.get(key);
+    group.brands.add(row.brand_username);
+    group.items.push(item);
+  }
+  const ranked = [...groups.values()].sort(
+    (a, b) => b.brands.size - a.brands.size || b.items.length - a.items.length,
+  );
+  const winner = ranked[0];
+  winner.items.sort(rateKey);
+  return winner;
+}
+
+function productPhrase(metal, category) {
+  const name = category === "set" ? "sets" : `${category}s`;
+  if (metal === "mixed") return `gold and diamond ${name}`;
+  if (metal) return `${metal} ${name}`;
+  return name;
+}
+
+function decisionSection(choice, names) {
+  if (!choice) return "";
+  const brands = choice.brands.size;
+  const brandWord = brands === 1 ? "brand" : "brands";
+  const phrase = productPhrase(choice.metal, choice.category);
+  const picks = choice.items.slice(0, 3).map(([row, result]) => {
+    const brand = names[row.brand_username] || row.brand_username;
+    const src = thumb(row.thumbnail_path);
+    const image = src
+      ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(`${brand}, ${choice.category}`)}">`
+      : `<span class="pick-missing" role="img" aria-label="${escapeHtml(brand)}"></span>`;
+    const body = `<div><strong>${escapeHtml(brand)}</strong><span>${pct(result.rate)}</span></div>`;
+    const card = `${image}${body}`;
+    if (row.permalink && (row.permalink.startsWith("https://") || row.permalink.startsWith("http://"))) {
+      return `<a class="pick" href="${escapeHtml(row.permalink)}" target="_blank" rel="noopener noreferrer">${card}</a>`;
+    }
+    return `<div class="pick">${card}</div>`;
+  });
+  return `<section class="panel decision"><p class="kicker">Put this forward</p><h2>This week, ${brands} ${brandWord} posted ${escapeHtml(phrase)}.</h2><div class="picks">${picks.join("")}</div></section>`;
 }
 
 function metalCounts(rows) {
@@ -116,8 +176,11 @@ function metalCounts(rows) {
   return counts;
 }
 
-function heatSection(heat) {
-  if (!heat.length) return '<section class="panel"><h2>Product types</h2><p class="empty">No posts in this window.</p></section>';
+function heatSection(heat, skipped = 0) {
+  const aside = skipped
+    ? `<p>Store openings, greetings, and hacks are already out. ${skipped} ${skipped === 1 ? "post is" : "posts are"} still tagged other or not tagged, so ${skipped === 1 ? "it is" : "they are"} not in this chart.</p>`
+    : "<p>How many of these brands posted the type this week. Other and untagged posts are left out.</p>";
+  if (!heat.length) return `<section class="panel"><h2>Product types</h2>${aside}</section>`;
   const widest = Math.max(...heat.map((item) => item.brands)) || 1;
   const body = heat
     .map((item) => {
@@ -127,7 +190,7 @@ function heatSection(heat) {
       return `<li><div class="heat-label"><span>${escapeHtml(item.category)}</span><span class="quiet">${item.brands} ${brandWord} · ${item.posts} ${postWord}</span></div><div class="bar" role="presentation"><span style="width:${width}%"></span></div></li>`;
     })
     .join("");
-  return `<section class="panel"><h2>Product types</h2><p>How many of these brands posted the type this week.</p><ul class="heat">${body}</ul></section>`;
+  return `<section class="panel"><h2>Product types</h2>${aside}<ul class="heat">${body}</ul></section>`;
 }
 
 function metalSection(counts) {
@@ -310,6 +373,12 @@ a:focus-visible, .ig:focus-visible { outline: 2px solid var(--gold); outline-off
 .stats dt { color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
 .stats dd { margin: 2px 0 0; font-family: Georgia, serif; font-size: 26px; }
 .panel { margin-top: 28px; }
+.decision h2 { font-size: 32px; line-height: 1.2; max-width: 18em; }
+.picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+.pick { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); text-decoration: none; color: inherit; }
+.pick img, .pick-missing { width: 100%; height: 240px; object-fit: cover; background: #efe4d4; display: block; }
+.pick div { display: flex; justify-content: space-between; gap: 8px; padding: 12px 14px; }
+.pick span { color: var(--gold-deep); font-family: Georgia, serif; }
 .section-head { margin-bottom: 14px; }
 .heat { list-style: none; margin: 14px 0 0; padding: 8px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
 .heat li { padding: 12px 0; border-bottom: 1px solid var(--line); }
@@ -362,6 +431,9 @@ footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line);
   .card { grid-template-columns: 96px 1fr; }
   .thumb, .thumb.missing { width: 96px; height: 96px; }
   h1 { font-size: 32px; }
+  .decision h2 { font-size: 26px; }
+  .picks { grid-template-columns: 1fr; }
+  .pick img, .pick-missing { height: 280px; }
   .rate strong { font-size: 18px; }
 }
 @media (max-width: 560px) {
