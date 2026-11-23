@@ -26,6 +26,8 @@ npm run job
 
 The copied `.env` already has `META_ACCESS_TOKEN`, `IG_USER_ID`, and `GEMINI_API_KEY`. A Graph API Explorer token lasts about an hour. Exchange it for the 60-day token before relying on the daily job.
 
+`STORIESFLY_KEY` is optional. When it is set, the same job also reads the public Stories that are up for each brand, one request per brand. Without the key, Stories are skipped and the post ranking is unchanged.
+
 ## Meta setup (the collector to use)
 
 The call is `business_discovery` on your own Instagram professional account. It reads the public posts and reels of other professional accounts. Development mode is enough while only you use the token. App Review is the later step, when someone else logs in.
@@ -72,7 +74,7 @@ Checked against the live token on 18 November 2026.
 
 - A full vision pass of the week on the free Gemini tier. The account is limited to about 20 image calls a day. The 18 November run left 27 posts on their caption tag. The next day's job continues with those.
 - An empty week for a quiet brand. On 18 November Tanishq and Senco returned 50 posts each, and none of them fell inside the last 7 days. The page names them under "Empty this week" and shows the date of their last stored post. That is an empty week, not a missed page.
-- Stories. The official API cannot read another brand's Stories. They are left out on purpose.
+- Stories from Meta. The official API cannot read another brand's Stories. With `STORIESFLY_KEY`, the job reads the public Stories that are up, keeps a still, and lists them apart from the rate.
 - The reel file itself, when Meta omits `media_url` (licensed audio, or downloads turned off). The permalink and, when present, the thumbnail still work.
 - Personal accounts, and accounts that are not professional. The call skips them.
 - Refreshing the token before day 60. The long-lived token in use expires about 17 January 2027. Exchange it again by hand before that.

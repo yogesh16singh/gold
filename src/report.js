@@ -1,7 +1,7 @@
 import { CATEGORIES } from "./config.js";
 import { latestByBrand, postsSince } from "./db.js";
 import { asideReason } from "./keywords.js";
-import { BASIS_LABEL, WINDOW_DAYS, isReel, scoreRow, windowStart } from "./score.js";
+import { BASIS_LABEL, WINDOW_DAYS, isReel, isStory, scoreRow, windowStart } from "./score.js";
 
 const REAL_CATEGORY = new Set(CATEGORIES.filter((name) => name !== "other"));
 const REAL_METAL = new Set(["gold", "diamond", "polki", "mixed"]);
@@ -16,10 +16,16 @@ const ASIDE_ORDER = { "store opening": 0, greeting: 1, hack: 2 };
 const SAFE_NAME = /^[A-Za-z0-9._-]+$/;
 
 export function renderReport(rows, names, now = new Date(), latest = {}) {
+  const stories = [];
+  const rankedRows = [];
+  for (const row of rows) {
+    if (isStory(row.media_product_type)) stories.push(row);
+    else rankedRows.push(row);
+  }
   const reels = [];
   const photos = [];
   const aside = [];
-  for (const row of rows) {
+  for (const row of rankedRows) {
     const result = scoreRow(row);
     const reason = asideReason(row.caption);
     if (reason) {
@@ -34,7 +40,7 @@ export function renderReport(rows, names, now = new Date(), latest = {}) {
   aside.sort(asideKey);
   const productRows = [...reels, ...photos].map(([row]) => row);
   const start = new Date(now.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const brands = new Set(rows.map((row) => row.brand_username)).size;
+  const brands = new Set(rankedRows.map((row) => row.brand_username)).size;
   const range = `${day(start)} – ${day(now)}`;
   return [
     head(),
@@ -46,13 +52,13 @@ export function renderReport(rows, names, now = new Date(), latest = {}) {
     `<p class="range">${escapeHtml(range)}</p>`,
     "</div>",
     '<dl class="stats">',
-    `<div><dt>Posts</dt><dd>${rows.length}</dd></div>`,
+    `<div><dt>Posts</dt><dd>${rankedRows.length}</dd></div>`,
     `<div><dt>Brands</dt><dd>${brands}</dd></div>`,
     `<div><dt>Window</dt><dd>${WINDOW_DAYS} days</dd></div>`,
     "</dl>",
     "</header>",
     decisionSection(chooseDecision([...reels, ...photos]), names),
-    quietSection(quietBrands(names, rows, latest)),
+    quietSection(quietBrands(names, rankedRows, latest)),
     heatSection(categoryHeat(productRows), unnamedCount(productRows)),
     metalSection(metalCounts(productRows)),
     postsSection(reels, names, "Reels", "Ranked by view_count / followers. Store openings, greetings, and hacks are not in this list."),
@@ -63,10 +69,11 @@ export function renderReport(rows, names, now = new Date(), latest = {}) {
       "Images, carousels, and videos that are not Reels. Ranked by (likes + 5×comments) / followers. Store openings, greetings, and hacks are not in this list.",
     ),
     postsSection(aside, names, "Not in the product rank", "Store openings, greetings, and hacks. A greeting that names the products stays in the rank.", { ranked: false }),
+    storiesSection(stories, names),
     "<footer>",
     "<p>Reels and feed posts use different formulas, so they stay in separate lists. A missing like count is hidden. Raw likes are shown beside the rate, and the rate is the sort.</p>",
     "<p>Thumbnails are local copies for this internal view. The brand still owns the photo. Instagram links open the original post in a new tab.</p>",
-    `<p>Generated ${day(now)} ${clock(now)} IST. Stories are not included.</p>`,
+    `<p>Generated ${day(now)} ${clock(now)} IST. ${stories.length ? "Stories are listed on their own. StoriesFly does not return likes or views, so they are not in the rate." : "Stories are not included."}</p>`,
     "</footer></main></body></html>",
   ].join("\n");
 }
@@ -212,6 +219,32 @@ function asideKey(a, b) {
   const reel = Number(isReel(b[0].media_product_type)) - Number(isReel(a[0].media_product_type));
   if (reel) return reel;
   return rateKey(a, b);
+}
+
+function storiesSection(rows, names) {
+  if (!rows.length) return "";
+  const ordered = [...rows].sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
+  const body = ordered.map((row) => {
+    const brand = names[row.brand_username] || row.brand_username;
+    const category = row.category || "untagged";
+    const metal = row.metal || "unknown";
+    const kind = String(row.media_type || "").toUpperCase() === "VIDEO" ? "video" : "photo";
+    const src = thumb(row.thumbnail_path);
+    const alt = `${brand} story, ${category}`;
+    const image = src
+      ? `<img class="thumb" src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">`
+      : `<span class="thumb missing" role="img" aria-label="${escapeHtml(alt)}"></span>`;
+    return `<li class="card">
+${shot(row.permalink, image)}
+<div class="card-body">
+<div class="card-top"><div><h3>${escapeHtml(brand)}</h3><p class="quiet">${escapeHtml(kind)} story</p></div></div>
+<p class="tags"><span>${escapeHtml(category)}</span><span class="metal-tag ${escapeHtml(metal)}">${escapeHtml(metal)}</span></p>
+<p class="metrics"><span>${escapeHtml(published(row.published_at))}</span></p>
+${link(row.permalink)}
+</div>
+</li>`;
+  });
+  return `<section class="panel"><div class="section-head"><h2>Stories</h2><p>Public Stories still up in this window. No likes or views, so they stay out of the rate.</p></div><ol class="feed">${body.join("")}</ol></section>`;
 }
 
 function postsSection(scored, names, title, note, options = {}) {

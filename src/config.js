@@ -44,3 +44,7 @@ export function port() {
 export function cronSchedule() {
   return process.env.CRON_SCHEDULE || "0 8 * * *";
 }
+
+export function storiesflyKey() {
+  return (process.env.STORIESFLY_KEY || "").trim();
+}

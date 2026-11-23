@@ -10,7 +10,12 @@ export function isReel(mediaProductType) {
   return ["REELS", "CLIPS", "REEL"].includes(String(mediaProductType || "").toUpperCase());
 }
 
+export function isStory(mediaProductType) {
+  return String(mediaProductType || "").toUpperCase() === "STORY";
+}
+
 export function scoreRow(row) {
+  if (isStory(row.media_product_type)) return { rate: null, basis: "story" };
   const followers = row.followers_count || 0;
   if (followers <= 0) return { rate: null, basis: "unscored" };
   const comments = row.comments_count || 0;
@@ -31,4 +36,5 @@ export const BASIS_LABEL = {
   comments_only: "comments / followers, likes hidden",
   reel_without_views: "reel, views missing",
   unscored: "followers missing",
+  story: "story, not in the rate",
 };

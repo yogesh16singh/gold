@@ -1,6 +1,7 @@
-import { BRANDS_PATH, dbPath, tagLimit } from "./config.js";
+import { BRANDS_PATH, dbPath, storiesflyKey, tagLimit } from "./config.js";
 import { collectBrands, loadBrands, selectSource } from "./collect.js";
 import { connect } from "./db.js";
+import { collectStories } from "./storiesfly.js";
 import { tagPosts } from "./tag.js";
 
 let running = false;
@@ -17,6 +18,16 @@ export async function runDaily() {
   try {
     const brands = loadBrands(BRANDS_PATH);
     await collectBrands(selectSource(), brands, db, started);
+    const storyKey = storiesflyKey();
+    if (storyKey) {
+      try {
+        await collectStories(storyKey, brands, db, started);
+      } catch (error) {
+        console.log(`Stories pass failed (${error.message}). Posts already saved.`);
+      }
+    } else {
+      console.log("STORIESFLY_KEY is not set. Skipping Stories.");
+    }
     const key = (process.env.GEMINI_API_KEY || "").trim() || null;
     const model = (process.env.GEMINI_MODEL || "gemini-3.5-flash").trim() || "gemini-3.5-flash";
     await tagPosts(db, key, model, started, tagLimit());
