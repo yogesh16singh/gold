@@ -142,8 +142,24 @@ function chooseDecision(scored) {
     (a, b) => b.brands.size - a.brands.size || b.items.length - a.items.length,
   );
   const winner = ranked[0];
-  winner.items.sort(rateKey);
+  winner.items = onePerBrand(winner.items);
   return winner;
+}
+
+function onePerBrand(items) {
+  const byBrand = new Map();
+  for (const item of items) {
+    const username = item[0].brand_username;
+    if (!byBrand.has(username)) byBrand.set(username, []);
+    byBrand.get(username).push(item);
+  }
+  const picks = [];
+  for (const group of byBrand.values()) {
+    group.sort(rateKey);
+    picks.push(group.find(([row]) => row.thumbnail_path) || group[0]);
+  }
+  picks.sort(rateKey);
+  return picks.slice(0, 3);
 }
 
 function productPhrase(metal, category) {
